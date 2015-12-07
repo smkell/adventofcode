@@ -58,39 +58,8 @@
 
 extern crate regex;
 
+mod parser;
+
 fn main() {
     println!("Hello, world!");
-}
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-enum Instruction {
-	Load(char, i32)
-}
-
-
-fn parse_instruction(input: &str) -> Option<Instruction> {
-	let re = regex!(r"(?x)
-		(?P<lhs>.*)
-		\s*
-		->
-		\s*
-		(?P<rhs>.*)");
-
-	Some(Instruction::Load('x', 123))
-}
-
-#[test]
-fn parse_instruction_test() {
-	let test_cases = vec!(
-		("123 -> x", Some(Instruction::Load('x', 123))),
-		("456 -> y", Some(Instruction::Load('y', 456))),
-	);
-
-	println!("");
-	for (i, test_case) in test_cases.iter().enumerate() {
-		let (input, expect) = *test_case;
-
-		println!("{:?}: {:?}, {:?}", i, input, expect);
-		assert_eq!(expect, parse_instruction(input));
-	}
 }
