@@ -61,10 +61,18 @@ mod parser;
 use std::collections::HashMap;
 
 fn main() {
+	println!("Processing input 1");
+	process_input("input.txt");
+
+	println!("Processing input 2");
+	process_input("input2.txt");
+}
+
+fn process_input(file: &str) {
 	use std::fs::File;
 	use std::io::prelude::*;
 
-	let mut f = File::open("input.txt").unwrap();
+	let mut f = File::open(file).unwrap();
 	let mut buffer = String::new();
 
 	f.read_to_string(&mut buffer).unwrap();
@@ -90,13 +98,23 @@ fn run_program(input: &str) -> HashMap<&str, u16> {
 
 	let mut registers = HashMap::new();
 
+	println!("Processing {:?} instructions", instructions.len());
+
 	while instructions.len() > 0 {
 		let instruction = instructions.pop().unwrap();
 
-		println!("Processing instruction {:?}", instruction);
 		match instruction {
 			Instruction::Load(d, c) => {
 				registers.insert(d, c);
+			},
+			Instruction::LoadW(d, w) => {
+				if registers.contains_key(&w) {
+					let val_w = *registers.get(&w).unwrap();
+
+					registers.insert(d, val_w);
+				} else {
+					instructions.insert(0, instruction);
+				}
 			},
 			Instruction::And(d, x, y) => {
 				// Check to see if we've initialized the neccesary 
@@ -111,6 +129,30 @@ fn run_program(input: &str) -> HashMap<&str, u16> {
 					instructions.insert(0, instruction);
 				}
 			},
+			Instruction::AndWC(d, w, c) => {
+				// Check to see if we've initialized the neccesary 
+				// registers
+				if registers.contains_key(&w) {
+					// OK! we can run the instruction
+					let val_w = *registers.get(&w).unwrap();
+
+					registers.insert(d, val_w & c);
+				} else {
+					instructions.insert(0, instruction);
+				}
+			},
+			Instruction::AndCW(d, c, w) => {
+				// Check to see if we've initialized the neccesary 
+				// registers
+				if registers.contains_key(&w) {
+					// OK! we can run the instruction
+					let val_w = *registers.get(&w).unwrap();
+
+					registers.insert(d, c & val_w);
+				} else {
+					instructions.insert(0, instruction);
+				}	
+			},
 			Instruction::Or(d, x, y) => {
 				// Check to see if we've initialized the neccesary 
 				// registers
@@ -120,6 +162,30 @@ fn run_program(input: &str) -> HashMap<&str, u16> {
 					let val_y = *registers.get(&y).unwrap();
 
 					registers.insert(d, val_x | val_y);
+				} else {
+					instructions.insert(0, instruction);
+				}
+			},
+			Instruction::OrWC(d, w, c) => {
+				// Check to see if we've initialized the neccesary 
+				// registers
+				if registers.contains_key(&w) {
+					// OK! we can run the instruction
+					let val_w = *registers.get(&w).unwrap();
+
+					registers.insert(d, val_w | c);
+				} else {
+					instructions.insert(0, instruction);
+				}
+			},
+			Instruction::OrCW(d, c, w) => {
+				// Check to see if we've initialized the neccesary 
+				// registers
+				if registers.contains_key(&w) {
+					// OK! we can run the instruction
+					let val_w = *registers.get(&w).unwrap();
+
+					registers.insert(d, c | val_w);
 				} else {
 					instructions.insert(0, instruction);
 				}
@@ -161,7 +227,6 @@ fn run_program(input: &str) -> HashMap<&str, u16> {
 				}
 			},
 		}
-		println!("Register state {:?}", registers);
 	}
 
 	registers

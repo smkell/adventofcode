@@ -20,10 +20,15 @@ enum Token<'a> {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Instruction<'a> {
 	And(&'a str, &'a str, &'a str),
+	AndWC(&'a str, &'a str, u16),
+	AndCW(&'a str, u16, &'a str),
 	Load(&'a str, u16),
+	LoadW(&'a str, &'a str),
 	LShift(&'a str, &'a str, u16),
 	Not(&'a str, &'a str),
 	Or(&'a str, &'a str, &'a str),
+	OrWC(&'a str, &'a str, u16),
+	OrCW(&'a str, u16, &'a str),
 	RShift(&'a str, &'a str, u16),
 }
 
@@ -39,7 +44,10 @@ pub fn parse_input(input: &str) -> Vec<Instruction> {
 				instructions.push(instruction);
 				start = start + tokens_consumed;
 			},
-			None => break
+			None => {
+				println!("Failed to parse tokens: {:?}", &tokens[start..]);
+				break
+			}
 		}
 	}
 
@@ -51,8 +59,13 @@ fn parse_input_test() {
 	let test_cases = vec!(
 		("123 -> x", vec!(Instruction::Load("x", 123))),
 		("123 -> x\n456 -> y", vec!(Instruction::Load("x", 123), Instruction::Load("y", 456))),
+		("lx -> a", vec!(Instruction::LoadW("a", "lx"))),
 		("x AND y -> d", vec!(Instruction::And("d", "x", "y"))),
-		("x OR y -> e", vec!(Instruction::Or("e", "x", "y"))),
+		("x AND 1 -> d", vec!(Instruction::AndWC("d", "x", 1))),
+		("1 AND x -> d", vec!(Instruction::AndCW("d", 1, "x"))),
+		("x OR y -> e",  vec!(Instruction::Or("e", "x", "y"))),
+		("x OR 1 -> e",  vec!(Instruction::OrWC("e", "x", 1))),
+		("1 OR x -> e",  vec!(Instruction::OrCW("e", 1, "x"))),
 		("x LSHIFT 2 -> f", vec!(Instruction::LShift("f", "x", 2))),
 		("y RSHIFT 2 -> g", vec!(Instruction::RShift("g", "y", 2))),
 		("NOT x -> h", vec!(Instruction::Not("h", "x"))),
@@ -60,15 +73,17 @@ fn parse_input_test() {
 		(
 			r"123 -> x
 			456 -> y
+			lx -> a
 			x AND y -> d
 			x OR y -> e
 			x LSHIFT 2 -> f
 			y RSHIFT 2 -> g
 			NOT x -> h
-			NOT y -> i", 
+			NOT y -> i",
 			vec!(
 				Instruction::Load("x", 123),
 				Instruction::Load("y", 456),
+				Instruction::LoadW("a", "lx"),
 				Instruction::And("d", "x", "y"),
 				Instruction::Or("e", "x", "y"),
 				Instruction::LShift("f", "x", 2),
@@ -89,20 +104,41 @@ fn parse_input_test() {
 
 fn parse_expression<'a>(tokens: &[Token<'a>]) -> Option<(Instruction<'a>, usize)> {
 	match tokens[0] {
-		Token::Constant(c) => match parse_constant_assign(c, &tokens[1..]) {
-			Some((instruction, tokens_consumed)) => {
-				Some((instruction, tokens_consumed + 1))
+		Token::Constant(c) => match tokens[1] {
+			Token::Assign => match parse_constant_assign(c, &tokens[1..]) {
+				Some((instruction, tokens_consumed)) => {
+					Some((instruction, tokens_consumed + 1))
+				},
+				None => None,
 			},
-			None => None
-		},
-		Token::Wire(w) => match tokens[1] {
-			Token::And => match parse_and(w, &tokens[2..]) {
+			Token::And => match parse_and_constant(c, &tokens[2..]) {
 				Some((instruction, tokens_consumed)) => {
 					Some((instruction, tokens_consumed + 2))
 				},
 				None => None,
 			},
-			Token::Or => match parse_or(w, &tokens[2..]) {
+			Token::Or => match parse_or_constant(c, &tokens[2..]) {
+				Some((instruction, tokens_consumed)) => {
+					Some((instruction, tokens_consumed + 2))
+				},
+				None => None,
+			},
+			_ => None,
+		},
+		Token::Wire(w) => match tokens[1] {
+			Token::Assign => match parse_wire_assign(w, &tokens[2..]) {
+				Some((instruction, tokens_consumed)) => {
+					Some((instruction, tokens_consumed + 1))
+				},
+				None => None,
+			},
+			Token::And => match parse_and_wire(w, &tokens[2..]) {
+				Some((instruction, tokens_consumed)) => {
+					Some((instruction, tokens_consumed + 2))
+				},
+				None => None,
+			},
+			Token::Or => match parse_or_wire(w, &tokens[2..]) {
 				Some((instruction, tokens_consumed)) => {
 					Some((instruction, tokens_consumed + 2))
 				},
@@ -144,11 +180,20 @@ fn parse_constant_assign<'a>(c: u16, tokens: &[Token<'a>]) -> Option<(Instructio
 	}
 }
 
-fn parse_and<'a>(w1: &'a str, tokens: &[Token<'a>]) -> Option<(Instruction<'a>, usize)> {
+fn parse_wire_assign<'a>(w1: &'a str, tokens: &[Token<'a>]) -> Option<(Instruction<'a>, usize)> {
 	match tokens[0] {
-		Token::Wire(w2) => match tokens[1] {
+		Token::Wire(w2) => {
+			Some((Instruction::LoadW(w2, w1), 2))
+		},
+		_ => None,
+	}
+}
+
+fn parse_and_constant<'a>(c: u16, tokens: &[Token<'a>]) -> Option<(Instruction<'a>, usize)> {
+	match tokens[0] {
+		Token::Wire(w) => match tokens[1] {
 			Token::Assign => match tokens[2] {
-				Token::Wire(d) => Some((Instruction::And(d, w1, w2), 3)),
+				Token::Wire(d) => Some((Instruction::AndCW(d, c, w), 3)),
 				_ => None,
 			},
 			_ => None,
@@ -157,11 +202,51 @@ fn parse_and<'a>(w1: &'a str, tokens: &[Token<'a>]) -> Option<(Instruction<'a>, 
 	}
 }
 
-fn parse_or<'a>(w1: &'a str, tokens: &[Token<'a>]) -> Option<(Instruction<'a>, usize)> {
+fn parse_and_wire<'a>(w1: &'a str, tokens: &[Token<'a>]) -> Option<(Instruction<'a>, usize)> {
+	match tokens[0] {
+		Token::Wire(w2) => match tokens[1] {
+			Token::Assign => match tokens[2] {
+				Token::Wire(d) => Some((Instruction::And(d, w1, w2), 3)),
+				_ => None,
+			},
+			_ => None,
+		},
+		Token::Constant(c) => match tokens[1] {
+			Token::Assign => match tokens[2] {
+				Token::Wire(d) => Some((Instruction::AndWC(d, w1, c), 3)),
+				_ => None,
+			},
+			_ => None,
+		},
+		_ => None,
+	}
+}
+
+fn parse_or_constant<'a>(c: u16, tokens: &[Token<'a>]) -> Option<(Instruction<'a>, usize)> {
+	match tokens[0] {
+		Token::Wire(w) => match tokens[1] {
+			Token::Assign => match tokens[2] {
+				Token::Wire(d) => Some((Instruction::OrCW(d, c, w), 3)),
+				_ => None,
+			},
+			_ => None,
+		},
+		_ => None,
+	}
+}
+
+fn parse_or_wire<'a>(w1: &'a str, tokens: &[Token<'a>]) -> Option<(Instruction<'a>, usize)> {
 	match tokens[0] {
 		Token::Wire(w2) => match tokens[1] {
 			Token::Assign => match tokens[2] {
 				Token::Wire(d) => Some((Instruction::Or(d, w1, w2), 3)),
+				_ => None,
+			},
+			_ => None,
+		},
+		Token::Constant(c) => match tokens[1] {
+			Token::Assign => match tokens[2] {
+				Token::Wire(d) => Some((Instruction::OrWC(d, w1, c), 3)),
 				_ => None,
 			},
 			_ => None,
