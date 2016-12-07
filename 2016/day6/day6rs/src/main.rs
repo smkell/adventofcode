@@ -18,7 +18,7 @@ fn main() {
 
     let mut output = String::new();
     for (_, frequency) in frequencies.iter().enumerate() {
-        let max = match frequency.iter().max_by_key(|&(_, v)| v) {
+        let max = match frequency.iter().min_by_key(|&(_, v)| v) {
             Some((c, _)) => c,
             None => panic!("Uh oh!")
         };
