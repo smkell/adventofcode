@@ -1,0 +1,6 @@
+[package]
+name = "day6rs"
+version = "0.1.0"
+authors = ["Sean Kell <skell@ea.com>"]
+
+[dependencies]
